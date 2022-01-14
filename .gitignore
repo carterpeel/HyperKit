@@ -14,3 +14,5 @@
 
 # don't push compiled output
 bin/*
+
+HyperBridge
