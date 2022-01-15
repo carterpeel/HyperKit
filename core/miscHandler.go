@@ -1,4 +1,4 @@
-package main
+package core
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	"github.com/brutella/hc/characteristic"
 	"github.com/brutella/hc/service"
 	"github.com/gorilla/websocket"
+	log "github.com/sirupsen/logrus"
 	"sync"
 )
 
@@ -18,10 +19,12 @@ type MiscHandler struct {
 	brightnessSelector *accessory.Outlet
 	brightnessServices map[uint8]*service.Outlet
 	mu                 *sync.Mutex
+	core               *Core
 }
 
-func NewMiscHandler() (m *MiscHandler) {
+func (c *Core) NewMiscHandler() (m *MiscHandler) {
 	m = &MiscHandler{
+		core: c,
 		speedSelector: accessory.NewOutlet(accessory.Info{
 			Name:             "HyperCube Speed",
 			Manufacturer:     "Carter Peel",
@@ -125,20 +128,20 @@ func (sph *MiscHandler) SetSpeed(speed uint8) {
 	sph.mu.Lock()
 	defer sph.mu.Unlock()
 	sph.curSpeed = speed
-	if err := socket.WriteMessage(websocket.TextMessage, buildSpeedJson(speed)); err != nil {
-		log.Printf("Error setting speed to %d (%.2f%%): %v\n", speed, (float64(speed)/255)*100, err)
+	if err := sph.core.socket.WriteMessage(websocket.TextMessage, buildSpeedJson(speed)); err != nil {
+		log.Errorf("Error setting speed to %d (%.2f%%): %v\n", speed, (float64(speed)/255)*100, err)
 		return
 	}
-	log.Printf("Set speed to %d (%.2f%%)\n", speed, (float64(speed)/255)*100)
+	log.Infof("Set speed to %d (%.2f%%)\n", speed, (float64(speed)/255)*100)
 }
 
 func (sph *MiscHandler) SetBrightness(brightness uint8) {
 	sph.mu.Lock()
 	defer sph.mu.Unlock()
 	sph.curBrightness = brightness
-	if err := socket.WriteMessage(websocket.TextMessage, buildBrightnessJson(brightness)); err != nil {
-		log.Printf("Error setting brightness to %d (%.2f%%): %v\n", brightness, (float64(brightness)/255)*100, err)
+	if err := sph.core.socket.WriteMessage(websocket.TextMessage, buildBrightnessJson(brightness)); err != nil {
+		log.Errorf("Error setting brightness to %d (%.2f%%): %v\n", brightness, (float64(brightness)/255)*100, err)
 		return
 	}
-	log.Printf("Set brightness to %d (%.2f%%)\n", brightness, (float64(brightness)/255)*100)
+	log.Infof("Set brightness to %d (%.2f%%)\n", brightness, (float64(brightness)/255)*100)
 }

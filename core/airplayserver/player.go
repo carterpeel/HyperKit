@@ -41,7 +41,11 @@ func NewBluetoothPlayer(pipeFile string, bluetoothName string) (lp *LocalPlayer,
 
 	log.Infof("Attempting to proxy device %v...", bluetoothName)
 	if lp.btpx, err = bluetoothproxy.ProxyBluetoothDevice(bluetoothName); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error proxying Bluetooth device: %v", err)
+	}
+
+	if err := lp.btpx.ConnectAudioOutput(); err != nil {
+		return nil, fmt.Errorf("error connecting audio in background: %v", err)
 	}
 
 	return lp, nil

@@ -1,20 +1,46 @@
-package main
+package core
 
 import (
 	"fmt"
-	"github.com/brutella/hc/accessory"
-	"github.com/brutella/hc/characteristic"
 	hclog "github.com/brutella/hc/log"
 	"github.com/gorilla/websocket"
 	"gopkg.in/yaml.v3"
 	"hyperkit/core/airplayserver"
-	"io"
 	"io/ioutil"
-	flog "log"
-	"os"
 )
 
-func init() {
+func InitConfig() (*Config, error) {
+	// Parse the config file
+	configBytes, err := ioutil.ReadFile("/etc/hyperkit.conf")
+	if err != nil {
+		return nil, fmt.Errorf("error reading config file: %v", err)
+	}
+
+	config := new(Config)
+	if err := yaml.Unmarshal(configBytes, config); err != nil {
+		return nil, fmt.Errorf("error parsing config file: %v", err)
+	}
+
+	if len(config.WledIP) <= 0 {
+		return nil, fmt.Errorf("wled_ip must not be empty in /etc/hyperkit.conf")
+	}
+
+	if config.Debug {
+		hclog.Debug.Enable()
+		airplayserver.StartProfiler()
+	}
+
+	return config, nil
+}
+
+func InitWebSocket(wledIP string) (socket *websocket.Conn, err error) {
+	if socket, _, err = websocket.DefaultDialer.Dial(fmt.Sprintf("ws://%s/ws", wledIP), nil); err != nil {
+		return nil, fmt.Errorf("error dialing 'ws://%s/ws': %v", wledIP, err)
+	}
+	return socket, nil
+}
+
+/*func init() {
 	// Parse the config file
 	configBytes, err := ioutil.ReadFile("/etc/hyperkit.conf")
 	if err != nil {
@@ -89,7 +115,7 @@ func init() {
 	hyperCubeName.Value = "Power"
 	hyperCube.Outlet.Service.AddCharacteristic(hyperCubeName.Characteristic)
 }
-
+*/
 type Config struct {
 	WledIP            string `yaml:"wled_ip,omitempty"`
 	DefaultSolid      bool   `yaml:"use_default_solid,omitempty"`
@@ -98,23 +124,4 @@ type Config struct {
 	Debug             bool   `yaml:"debug_logging,omitempty"`
 	LogFile           string `yaml:"logfile,omitempty"`
 	BtDeviceName      string `yaml:"bluetooth_device,omitempty"`
-}
-
-func SocketReader(conn *websocket.Conn) {
-	for {
-		// read in a message
-		messageType, p, err := conn.ReadMessage()
-		if err != nil {
-			log.Println(err)
-			return
-		}
-		// print out that message for clarity
-		fmt.Println(string(p))
-
-		if err := conn.WriteMessage(messageType, p); err != nil {
-			log.Println(err)
-			return
-		}
-
-	}
 }

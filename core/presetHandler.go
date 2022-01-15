@@ -1,10 +1,10 @@
-package main
+package core
 
 import (
 	"fmt"
-	"github.com/brutella/hc/characteristic"
 	"github.com/brutella/hc/service"
 	"github.com/gorilla/websocket"
+	log "github.com/sirupsen/logrus"
 	"hyperkit/core/airplayserver"
 	"sync"
 	"sync/atomic"
@@ -19,34 +19,24 @@ type PresetHandler struct {
 	ledFxBridge  *airplayserver.AirplayServer
 	ledFxSwitch  *service.Outlet
 	musicEnabled uint32
+	core         *Core
 }
 
-func NewPresetHandler(defaultSolid bool) (p *PresetHandler, err error) {
+func (c *Core) NewPresetHandler() (p *PresetHandler, err error) {
 	p = &PresetHandler{
 		Presets:    make(map[int]*service.Outlet, 0),
 		lastActive: -1, // Should be -1 by default
 		mu:         &sync.Mutex{},
+		core:       c,
 	}
 
-	if defaultSolid {
-		solid := service.NewOutlet()
-		solidName := characteristic.NewName()
-		solidName.Value = "Preset: Solid"
-		solid.AddCharacteristic(solidName.Characteristic)
-		hyperCube.AddService(solid.Service)
-		p.InitPreset(69, solid)
-		if defaultSolid {
-			solid.On.SetValue(true)
-		}
-	}
-
-	if err := socket.WriteMessage(websocket.TextMessage, []byte(`{"bri":255, "ps":69}`)); err != nil {
+	if err := c.socket.WriteMessage(websocket.TextMessage, []byte(`{"bri":255, "ps":69}`)); err != nil {
 		return nil, fmt.Errorf("error booting WLED: %v", err)
 	}
 
-	hyperCube.Outlet.On.SetValue(true)
+	c.menuOutlet.Outlet.On.SetValue(true)
 
-	hyperCube.Outlet.On.OnValueRemoteUpdate(func(b bool) {
+	c.menuOutlet.Outlet.On.OnValueRemoteUpdate(func(b bool) {
 		p.togglePower()
 		if !b {
 			for id, preset := range p.Presets {
@@ -71,10 +61,10 @@ func (p *PresetHandler) InitPreset(wledPresetID int, preset *service.Outlet) {
 			log.Println("Switching to solid color WLED preset...")
 			return
 		}
-		if !hyperCube.Outlet.On.Value.(bool) {
+		if !p.core.menuOutlet.Outlet.On.Value.(bool) {
 			go p.togglePower()
 			log.Println("Turning on HyperCube...")
-			hyperCube.Outlet.On.SetValue(true)
+			p.core.menuOutlet.Outlet.On.SetValue(true)
 		}
 		p.enablePresetByID(wledPresetID)
 		for _, linkedPreset := range p.Presets {
@@ -96,7 +86,7 @@ func (p *PresetHandler) togglePower() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	log.Println("Toggling HyperCube power...")
-	if err := socket.WriteMessage(websocket.TextMessage, []byte(TogglePowerJson)); err != nil {
+	if err := p.core.socket.WriteMessage(websocket.TextMessage, []byte(TogglePowerJson)); err != nil {
 		log.Printf("Error turning off HyperCube: %v\n", err)
 	}
 }
@@ -114,7 +104,7 @@ func (p *PresetHandler) enablePresetByID(id int) {
 	if id > -1 {
 		preset.On.SetValue(true)
 	}
-	if err := socket.WriteMessage(websocket.TextMessage, buildPresetJson(id)); err != nil {
+	if err := p.core.socket.WriteMessage(websocket.TextMessage, buildPresetJson(id)); err != nil {
 		log.Printf("Error turning off LEDs: %v\n", err)
 	}
 }

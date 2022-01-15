@@ -58,11 +58,6 @@ func (a *AirplayServer) Start() error {
 
 	go a.svc.Start(false, true)
 
-	log.Printf("Connecting to BT device...\n")
-	if err := a.plyr.btpx.Connect(); err != nil {
-		return fmt.Errorf("error connecting to BT device: %v", err)
-	}
-
 	return nil
 }
 
