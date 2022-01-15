@@ -11,24 +11,24 @@ import (
 func GetAllPresets(wledIP string) (pd []PresetData, err error) {
 	resp, err := http.Get(fmt.Sprintf("http://%s/presets.json", wledIP))
 	if err != nil {
-		return nil, fmt.Errorf("error connecting to WLED API: %v", err)
+		return nil, fmt.Errorf("error connecting to WLED API: %w", err)
 	}
 	defer resp.Body.Close()
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("error reading data from response: %v", err)
+		return nil, fmt.Errorf("error reading data from response: %w", err)
 	}
 	pdMap := make(map[string]*PresetData)
 
 	if err := json.Unmarshal(bodyBytes, &pdMap); err != nil {
-		return nil, fmt.Errorf("error unmarshalling response body: %v", err)
+		return nil, fmt.Errorf("error unmarshalling response body: %w", err)
 	}
 
 	pd = make([]PresetData, 0)
 
 	for id, pst := range pdMap {
 		if pst.ID, err = strconv.Atoi(id); err != nil {
-			return nil, fmt.Errorf("error converting WLED string id '%s' to numerical value: %v", id, err)
+			return nil, fmt.Errorf("error converting WLED string id '%s' to numerical value: %w", id, err)
 		}
 		pd = append(pd, *pst)
 	}

@@ -16,3 +16,10 @@ func PinArrayToString(pinArray [8]uint) (string, error) {
 	}
 	return str.String(), nil
 }
+
+func FormatExecOutputToError(output []byte, err error) error {
+	if err != nil {
+		return fmt.Errorf("error during exec:\n  stdout/stderr: %s\n  go error: %w", string(output), err)
+	}
+	return nil
+}

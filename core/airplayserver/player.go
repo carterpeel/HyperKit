@@ -45,7 +45,7 @@ func NewBluetoothPlayer(pipeFile string, bluetoothName string) (lp *LocalPlayer,
 	}
 
 	if err := lp.btpx.ConnectAudioOutput(); err != nil {
-		return nil, fmt.Errorf("error connecting audio in background: %v", err)
+		return nil, fmt.Errorf("error connecting audio in background: %w", err)
 	}
 
 	return lp, nil

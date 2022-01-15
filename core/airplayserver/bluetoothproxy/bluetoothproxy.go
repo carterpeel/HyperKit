@@ -28,44 +28,35 @@ func ProxyBluetoothDevice(deviceName string) (bt *BluetoothProxy, err error) {
 
 func (bt *BluetoothProxy) ConnectAudioOutput() (err error) {
 	if bt.adapter, err = adapter.GetDefaultAdapter(); err != nil {
-		return fmt.Errorf("error getting default adapter: %v", err)
+		return fmt.Errorf("error getting default adapter: %w", err)
 	}
 
 	log.Infof("Searching for Bluetooth devices containing '%s'...\n", strings.ToLower(bt.deviceName))
-	switch err := bt.ConnectFromCurrentDeviceList(); err != nil {
-	case err == errorTypes.BtDeviceDoesNotExist:
-		go func() {
-			if err := bt.StartScanner(); err != nil {
-				log.Errorf("Error starting Bluetooth runInBackground scanner: %v", err)
-			}
-		}()
-		return nil
-	case err == errorTypes.BtDeviceDown:
-		log.Infof("Indefinitely attempting to connect to device '%s'...\n", bt.dev.Properties.Name)
-		go bt.TryConnect(-1)
-		return nil
-	}
-	return fmt.Errorf("error finding device from existing list: %v", err)
-}
-
-func (bt *BluetoothProxy) TryConnect(retries int) {
-	for i := 0; i != retries; i++ {
-		if err := bt.dev.Connect(); err != nil {
-			if !errorTypes.IsBtDevDown(err) {
-				log.Warnf("Weird/unexpected error returned during connection attempt %d: %v\n", i, err)
-			}
-			continue
+	if err := bt.ConnectFromCurrentDeviceList(); err != nil {
+		switch {
+		case err == errorTypes.BtDeviceDoesNotExist:
+			go func() {
+				if err := bt.StartScanner(); err != nil {
+					log.Errorf("Error starting Bluetooth background scanner: %v", err)
+				}
+			}()
+			return nil
+		case err == errorTypes.BtDeviceDown:
+			log.Infof("Indefinitely attempting to connect to device '%s'...\n", bt.dev.Properties.Name)
+			go bt.TryConnect(-1)
+			return nil
+		default:
+			return fmt.Errorf("error attempting to connect from current device list: %w", err)
 		}
-		log.Infof("Successfully connected to device '%s'\n", bt.dev.Properties.Name)
-		return
 	}
+	return nil
 }
 
 func (bt *BluetoothProxy) ConnectFromCurrentDeviceList() (err error) {
 	_ = bt.adapter.SetPowered(true)
 	devs, err := bt.adapter.GetDevices()
 	if err != nil {
-		return fmt.Errorf("error getting devices: %v", err)
+		return fmt.Errorf("error getting devices: %w", err)
 	}
 	for _, v := range devs {
 		if strings.Contains(strings.ToLower(v.Properties.Name), strings.ToLower(bt.deviceName)) {
@@ -78,27 +69,40 @@ func (bt *BluetoothProxy) ConnectFromCurrentDeviceList() (err error) {
 			if connected {
 				log.Infof("Already connected to requested device. No need to reconnect.\n")
 				return nil
-			} else {
-				if err := v.Connect(); err != nil {
-					if errorTypes.IsBtDevDown(err) {
-						return errorTypes.BtDeviceDown
-					} else {
-						log.Warnf("error connecting to '%s': %v\n", v.Properties.Name, err)
-						continue
-					}
-				}
-				return nil
 			}
+			if err := v.Connect(); err != nil {
+				if errorTypes.IsBtDevDown(err) {
+					return errorTypes.BtDeviceDown
+				}
+				log.Warnf("error connecting to '%s': %v\n", v.Properties.Name, err)
+				continue
+			}
+			return nil
 		}
 	}
 	return errorTypes.BtDeviceDoesNotExist
+}
+
+func (bt *BluetoothProxy) TryConnect(retries int) {
+	for i := 0; i != retries; i++ {
+		if err := bt.dev.Connect(); err != nil {
+			if !errorTypes.IsBtDevDown(err) {
+				log.Warnf("Weird/unexpected error returned during connection attempt %d: %v\n", i, err)
+			}
+			continue
+		}
+		if ok, _ := bt.dev.GetConnected(); ok {
+			log.Infof("Successfully connected to device '%s'\n", bt.dev.Properties.Name)
+			return
+		}
+	}
 }
 
 func (bt *BluetoothProxy) StartScanner() (err error) {
 	log.Infof("Scanning for Bluetooth devices matching the criteria '%s'...\n", bt.deviceName)
 	discovery, cancel, err := api.Discover(bt.adapter, nil)
 	if err != nil {
-		return fmt.Errorf("error running discovery: %v", err)
+		return fmt.Errorf("error running discovery: %w", err)
 	}
 	go func() {
 		defer cancel()
